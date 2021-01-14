@@ -1,0 +1,259 @@
+def ask(question, options):
+    result = None
+    while result not in options:
+        print(question)
+        result = input().strip()
+    return result
+
+    #
+def askSN():
+    result = None
+    while not result:
+        print("Scan SN #")
+        result = input().strip()
+    return result
+
+answer=ask("öldfkjvidfkgb.ö,jknkfgvb?[y/n"])
+
+============================================0
+#Modulfinder script
+
+from modulefinder import ModuleFinder
+f = ModuleFinder()
+# Run the main script
+f.run_script('run.py')
+# Get names of all the imported modules
+names = list(f.modules.keys())
+# Get a sorted list of the root modules imported
+basemods = sorted(set([name.split('.')[0] for name in names]))
+# Print it nicely
+print "\n".join(basemods)
+--------------------------------------------------------------
+# -*- coding: utf-8 -*-
+# skript zur automatischen Einrichtung der 8 Monitore fuer Obi
+# erstellt 2020/01/08
+
+
+### IMPORTS
+from neclib import *
+from redminelib import Redmine
+import logging
+import time
+import subprocess
+import socket
+import struct
+import re
+import requests
+import urllib.parse
+
+logger = None
+redmine = None
+
+def ask(question, options):
+    result = None
+    while result not in options:
+        print(question)
+        result = input().strip()
+    return result
+
+
+def askSN():
+    result = None
+    while not result:
+        print("Scan SN #")
+        result = input().strip()
+    return result
+
+
+######### vorneweg entscheidung Display-Pos oder Display-config
+# ask Config oder Position-Festlegen, abhängig davon Schleife 1 oder Schleife 2
+######### Beginn Ablauf des Programms DisplayConfig ##############
+"""
+
+# TODO: Anzeige einer Tabelle/Liste aus IP Adresse & SN, wait 2s
+# TODO: Frage Redmine nach SN und ermittle Ticktnummer und Displayposition
+
+# TODO: Anzeige aller Displaydaten inkl. Ticketnummer, Sort by Display-Position aus Redmine
+# Hinweis auf Displays mit fehlerhaften Redmine-Einträgen
+einzel = ask("Displays einzeln konfigurieren oder alle, (e oder a)?", ["e", "a"]) == "e"
+"""
+# Dann für jedes Display in der Schleife die Einstellungen setzen, alle einstellungen loggen und auf dem Bildschirm ausgeben
+
+""" #Display Protection>Power Save> ON
+monitor.sendCommand("CA0B0100")
+logger.info("Set option Display Protection > Power Save > ON")
+"""
+
+""" #Eingangssignal auf Display Port
+monitor.setInput("Display Port")
+logger.info("Set input to DP1")
+"""
+
+""" #Tilematrix
+Position ? (ID1=4, ID2=3, ID3=1, ID4=2)(ID5=4, ID6=3, ID7=1, ID8=2)
+TileComp=yes
+
+HMonitors 2
+Vmonitors 2
+def setTileMatrixMode(self, xres, yres, pos, mode, tilecompensate=False):
+"""
+
+"""Tilematrix Enable=yes
+TILE MATRIX ENABLE	02h	D3h	0: No mean
+1: NO
+2: YES
+"""
+
+"""Mediaplayer Network disable
+MEDIA PLAYER	11h	D0h	0: No mean
+1: OFF
+2: ON
+"""
+"""Compute Model  Network disable
+COMPUTE MODULE	11h	D1h	0: No mean
+1: OFF
+2: ON
+"""
+
+"""ID setzen als letztes, da dann nicht mehr erreichbar
+setID()
+"""
+
+""" Jetzt IP Adresse setzen
+Pos/ID1: 192.168.0.11
+Pos/ID2: 192.168.0.12
+Pos/ID3: 192.168.0.13
+Pos/ID4: 192.168.0.14
+Pos/ID5: 192.168.1.15
+Pos/ID6: 192.168.1.16
+Pos/ID7: 192.168.1.17
+Pos/ID8: 192.168.1.18
+
+network auf manual/ip-adresse eintragen/apply (3 commands, s.o.)
+"""
+
+# TODO: so jetzt das ganze Log ins Redmine übertragen
+"""redmine.issue.update(17959, status_id=46, notes=display1_log)"""
+
+
+
+def setDisplayconfig(ip, pos):
+    conn = NetworkConnection(ip, 7142)
+    comm = MonitorCommunicator(conn)
+    monitor = Monitor(comm, 1)
+    if pos == 1 or pos == 5:
+        display_id_pos = 4
+    if pos == 2 or pos == 6:
+        display_id_pos = 3
+    if pos == 3 or pos == 7:
+        display_id_pos = 1
+    if pos == 4 or pos == 8:
+        display_id_pos = 2
+    # - Display Protection>Power Save> ON
+    logger.info("Set option Display Protection > Power Save > ON")
+    monitor.sendCommand("CA0B0100")
+    # - Eingangssignal auf Display Port
+    logger.info("Set input to DP1")
+    monitor.setInput("15")
+    monitor.setTileMatrixMode(2, 2, display_id_pos, "on", tilecompensate=False)
+    # Custom commands
+    # Tile Comp
+    monitor.sendSetParameter("02", "D5", "2")
+    # Tile Matrix
+    monitor.sendSetParameter("02", "D3", "2")
+    # Disable Media Player
+    monitor.sendSetParameter("11", "D0", "1")
+    # Disable Compute Module
+    monitor.sendSetParameter("11", "D1", "2")
+    try:
+        monitor.setID(display_id_pos)
+    except AttributeError:
+        pass
+
+
+######### Ende Programm Display-Position-Zuordnung ########
+def display_pos():
+    sn = askSN()
+    issue = redmine.issue.filter(cf_74=sn)
+    if len(issue) > 1:
+        print("Multiple Tickets found, do it test1")
+        print("Multiple Tickets found, do it test2")
+    else:
+        print("Found ticket: {0}".format(issue[0].id))
+        print("Current position: {0}".format(issue[0].custom_fields.get(114).value))
+        answer = ask("Change position for this display? [y/n]", ["y", "Y", "j", "J", "n", "N"])
+        if answer in ["y", "Y", "j", "J"]:
+            new_pos = ask("Which position should this display get?: ", ["1", "2", "3", "4", "5", "6", "7", "8"])
+            redmine.issue.update(issue[0].id, custom_fields=[{'id': 114, 'value': new_pos}])
+
+
+def display_config():
+    ok = False
+    tickets = {}
+    while not ok:
+        nmap_output = subprocess.run('nmap -p7142 192.168.169.* | grep -B 4 "7142/tcp open"', shell=True,
+                                     stdout=subprocess.PIPE).stdout.decode("utf-8")
+        display_ips = re.findall("(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", nmap_output)
+        for num, ip in enumerate(display_ips, start=1):
+            print("Display {0}: {1}".format(num, ip))
+        answer = ask("Number of displays found ok? [y/n]", ["y", "Y", "j", "J", "n", "N"])
+        if answer in ["y", "Y", "j", "J"]:
+            ok = True
+    for ip in display_ips:
+        print("Init Connection for: {}".format(ip))
+        conn = NetworkConnection(ip, 7142)
+        comm = MonitorCommunicator(conn)
+        monitor = Monitor(comm, 1)
+        sn = monitor.getSerialNumber()
+        if not sn:
+            continue
+        print("SN {0} for: {1}".format(sn, ip))
+        issue = redmine.issue.filter(cf_74=sn)
+        if len(issue) > 1:
+            print("Multiple Tickets found, skipping this one")
+        else:
+            tickets["{}".format(ip)] = issue[0]
+    print("Ticket	Status	Red SN	Red-DisplayPosition	Net: DisplayIPaktuell	Net: DisplaySN")
+    for key in tickets:
+        print("{0} {1} {2} {3} {4} {5}".format(tickets[key].id, tickets[key].status,
+                                               tickets[key].custom_fields.get(74).value,
+                                               tickets[key].custom_fields.get(114).value, ip, sn))
+    answer = ask("Configure Displays selectivly or all ot once? (s oder a)?", ["s", "S", "a", "A"])
+    if answer in ["s", "S"]:
+        for key in tickets:
+            answer = ask(
+                "Set settings for display {0} Ticket: #{1}? [y/n]".format(ip, tickets["{}".format(ip)].id),
+                ["y", "Y", "j", "J", "n", "N"])
+            if answer in ["y", "Y", "j", "J"]:
+                setDisplayconfig(ip, int(tickets["{}".format(ip)].custom_fields.get(114).value))
+            redmine.issue.update(tickets["{}".format(ip)].id, status_id=46, notes="")
+    else:
+        for key in tickets:
+            setDisplayconfig(ip, int(tickets[key].custom_fields.get(114).value))
+            redmine.issue.update(tickets[key].id, status_id=46, notes="")
+
+
+if __name__ == "__main__":
+    LOGFILE_NAME = "/tmp/displaysetup.log"
+    logging.basicConfig(LOGFILE_NAME)
+    logger = logging.getLogger("Obi_Script")
+    REDMINE_API_KEY = "476436ec611040d40166ecdd58bf8d503734b356"  # obi-api@benhur.de
+    redmine = Redmine('https://redmine.intern.benhur.de', key=REDMINE_API_KEY, version="3.4.11")
+    answer = ask(
+        "What do you want to do?\n[1] Display Position: Scan displays/set positions \n[2] Display Config: find displays in the network and set all display settings based on the designated position",
+        ["1", "2"])
+    while True:
+        # try:
+        while answer == "1":  # Scan SN Barcode and Set Position
+            display_pos()
+            answer = ask(
+                "What do you want to do?\n[1] Display Position: Scan displays/set positions \n[2] Display Config: find displays in the network and set all display settings based on the designated position",
+                ["1", "2"])
+        while answer == "2":  # Find Displays in the network and set Display Position according to existing redmine tickets
+            display_config()
+            answer = ask(
+                "What do you want to do?\n[1] Display Position: Scan displays/set positions \n[2] Display Config: find displays in the network and set all display settings based on the designated position",
+                ["1", "2"])
+        # except BaseException as e:
+        #    print("EXCEPTION !!!")
+        #    print(e)
